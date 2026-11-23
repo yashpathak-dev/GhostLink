@@ -1,0 +1,626 @@
+{% extends "base.html" %}
+{% set active_theme = user.theme %}
+{% block title %}Dashboard — GhostLink (@{{ user.username }}){% endblock %}
+
+{% block content %}
+<header class="w-full border-b border-white/5 backdrop-blur-md sticky top-0 z-40">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+    <a href="/" class="flex items-center gap-2.5">
+      <span class="w-2.5 h-2.5 rounded-full bg-violet-500 animate-pulse"></span>
+      <span class="font-mono font-semibold tracking-wider text-lg text-white">GHOST<span class="text-violet-400">LINK</span></span>
+    </a>
+
+    <nav class="flex items-center gap-2 sm:gap-2.5">
+      <a href="/explore" class="text-xs font-mono text-zinc-300 hover:text-violet-300 px-3 py-1.5 rounded-lg border border-white/10 transition">
+        Find Users
+      </a>
+      <a href="/live" class="hidden md:inline-block text-xs font-mono text-zinc-400 hover:text-violet-300 px-3 py-1.5 rounded-lg border border-white/10 transition">
+        Live TCP Room
+      </a>
+      <a id="publicPageLink" href="/u/{{ user.username }}" target="_blank" rel="noopener"
+        class="text-xs font-mono text-zinc-300 hover:text-violet-300 px-3 py-1.5 rounded-lg border border-white/10 transition">
+        View Profile ↗
+      </a>
+      <form method="POST" action="/logout" class="m-0">
+        <button type="submit" class="text-xs font-mono text-zinc-400 hover:text-red-400 px-3 py-1.5 rounded-lg border border-white/10 transition cursor-pointer">
+          Logout
+        </button>
+      </form>
+    </nav>
+  </div>
+</header>
+
+<main class="max-w-6xl w-full mx-auto px-4 sm:px-6 py-8 flex-grow space-y-8">
+  <section class="grid lg:grid-cols-12 gap-6 items-stretch">
+    <div class="lg:col-span-7 glass-card theme-border p-6 rounded-2xl flex flex-col justify-between space-y-5">
+      <div class="flex items-center gap-4">
+        <div id="headerAvatarContainer" class="shrink-0">
+          {% if user.avatar_url %}
+            <img id="headerAvatarImg" src="{{ user.avatar_url }}" alt="{{ user.display_name }}" class="w-16 h-16 rounded-2xl object-cover border border-violet-400/40" />
+          {% else %}
+            <div id="headerAvatarFallback" class="w-16 h-16 rounded-2xl bg-violet-600/30 border border-violet-400/40 flex items-center justify-center text-2xl font-bold text-violet-200 uppercase">
+              {{ user.display_name[0] }}
+            </div>
+          {% endif %}
+        </div>
+        <div class="min-w-0">
+          <div class="text-xs font-mono text-violet-400 mb-0.5">WELCOME BACK</div>
+          <h1 class="text-2xl sm:text-3xl font-bold text-white truncate" id="headerDisplayName">{{ user.display_name }}</h1>
+          <p class="text-sm text-zinc-400 mt-0.5 line-clamp-2" id="headerBio">{{ user.bio or 'Share your personal GhostLink to start receiving anonymous notes.' }}</p>
+        </div>
+      </div>
+
+      <div class="p-3.5 rounded-xl bg-zinc-950/80 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="min-w-0">
+          <div class="text-[10px] font-mono text-zinc-500">YOUR PERSONAL GHOSTLINK</div>
+          <div id="personalLinkText" class="text-sm font-mono text-violet-300 truncate select-all">{{ public_url }}</div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <button type="button" id="copyBtn"
+            class="bg-violet-600 hover:bg-violet-500 text-white text-xs font-mono px-4 py-2.5 rounded-xl transition cursor-pointer">
+            Copy Link
+          </button>
+          <button type="button" id="shareBtn"
+            class="glass-card hover:border-violet-400/50 text-zinc-200 text-xs font-mono px-4 py-2.5 rounded-xl transition cursor-pointer">
+            Share
+          </button>
+        </div>
+      </div>
+      <div id="shareFeedback" class="hidden text-xs font-mono text-emerald-400"></div>
+    </div>
+
+    <div class="lg:col-span-5 grid grid-cols-3 gap-3 sm:gap-4">
+      <div class="glass-card p-5 rounded-2xl flex flex-col justify-between">
+        <span class="text-[11px] font-mono text-zinc-400">UNREAD</span>
+        <span id="statUnread" class="text-3xl sm:text-4xl font-bold text-violet-400 my-2">{{ stats.unread }}</span>
+        <span class="text-[11px] text-zinc-500">Needs review</span>
+      </div>
+      <div class="glass-card p-5 rounded-2xl flex flex-col justify-between">
+        <span class="text-[11px] font-mono text-zinc-400">TOTAL</span>
+        <span id="statTotal" class="text-3xl sm:text-4xl font-bold text-white my-2">{{ stats.total }}</span>
+        <span class="text-[11px] text-zinc-500">All time</span>
+      </div>
+      <div class="glass-card p-5 rounded-2xl flex flex-col justify-between">
+        <span class="text-[11px] font-mono text-zinc-400">FRIENDS</span>
+        <span id="statFriends" class="text-3xl sm:text-4xl font-bold text-fuchsia-400 my-2">{{ friends | length }}</span>
+        <a href="/explore" class="text-[11px] text-violet-300 hover:underline">+ Find more</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid lg:grid-cols-12 gap-8 items-start">
+    <!-- Anonymous Inbox -->
+    <div class="lg:col-span-8 space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2.5">
+          <h2 class="text-lg font-bold text-white">Anonymous Inbox</h2>
+          <span id="inboxUnreadPill" class="text-xs font-mono px-2.5 py-0.5 rounded-full theme-badge">
+            {{ stats.unread }} unread
+          </span>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button type="button" id="filterAllBtn"
+            class="filter-btn text-xs font-mono px-3 py-1.5 rounded-lg bg-violet-600 text-white cursor-pointer">
+            All
+          </button>
+          <button type="button" id="filterUnreadBtn"
+            class="filter-btn text-xs font-mono px-3 py-1.5 rounded-lg glass-card text-zinc-400 hover:text-white cursor-pointer">
+            Unread
+          </button>
+          <button type="button" id="markAllReadBtn"
+            class="text-xs font-mono px-3 py-1.5 rounded-lg glass-card text-zinc-300 hover:border-violet-500/40 cursor-pointer">
+            Mark all read
+          </button>
+        </div>
+      </div>
+
+      <div id="inboxList" class="space-y-3.5">
+        {% if not messages %}
+          <div id="emptyInboxState" class="glass-card p-10 rounded-2xl text-center space-y-3">
+            <div class="text-2xl">👻</div>
+            <h3 class="text-base font-semibold text-white">Your GhostLink inbox is quiet</h3>
+            <p class="text-sm text-zinc-400 max-w-md mx-auto">
+              Copy your link above and share it with friends to start receiving anonymous messages.
+            </p>
+          </div>
+        {% else %}
+          {% for msg in messages %}
+            <article id="msg-card-{{ msg.id }}" data-id="{{ msg.id }}" data-read="{{ msg.is_read }}"
+              class="msg-card glass-card p-5 rounded-2xl transition {{ 'border-violet-500/50 shadow-[0_0_20px_rgba(139,92,246,0.10)]' if msg.is_read == 0 else 'opacity-85' }}">
+              
+              <div class="flex items-center justify-between gap-2 mb-3">
+                <div class="badge-group flex items-center gap-2">
+                  <span id="badge-{{ msg.id }}" class="status-badge text-[10px] font-mono px-2 py-0.5 rounded-md {{ 'bg-violet-600 text-white' if msg.is_read == 0 else 'bg-white/5 text-zinc-500' }}">
+                    {{ 'NEW • UNREAD' if msg.is_read == 0 else 'READ' }}
+                  </span>
+                  {% if msg.is_reported %}
+                    <span class="reported-badge text-[10px] font-mono px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                      REPORTED
+                    </span>
+                  {% endif %}
+                </div>
+                <time class="text-[11px] font-mono text-zinc-500">{{ msg.created_at[:16].replace('T', ' ') }} UTC</time>
+              </div>
+
+              <p class="text-zinc-100 text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words">{{ msg.content }}</p>
+
+              <div class="mt-4 pt-3 border-t border-white/5 flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-1.5">
+                  {% for emoji in reactions %}
+                    <button type="button"
+                      data-action="react"
+                      data-id="{{ msg.id }}"
+                      data-emoji="{{ emoji }}"
+                      class="reaction-btn text-sm px-2.5 py-1 rounded-lg border transition cursor-pointer {{ 'bg-violet-600/30 border-violet-400' if msg.reaction == emoji else 'bg-zinc-950/60 border-white/5 hover:border-white/20' }}">
+                      {{ emoji }}
+                    </button>
+                  {% endfor %}
+                </div>
+
+                <div class="flex items-center gap-2 text-xs font-mono">
+                  {% if msg.is_read == 0 %}
+                    <button type="button" id="readBtn-{{ msg.id }}"
+                      data-action="read"
+                      data-id="{{ msg.id }}"
+                      class="read-btn text-violet-300 hover:text-violet-200 px-2.5 py-1 rounded-lg bg-violet-500/10 transition cursor-pointer">
+                      Mark read
+                    </button>
+                  {% endif %}
+                  <button type="button"
+                    data-action="report"
+                    data-id="{{ msg.id }}"
+                    {% if msg.is_reported %}disabled{% endif %}
+                    class="report-btn text-zinc-400 hover:text-amber-300 disabled:opacity-40 disabled:pointer-events-none px-2.5 py-1 rounded-lg hover:bg-white/5 transition cursor-pointer">
+                    {{ 'Reported' if msg.is_reported else 'Report' }}
+                  </button>
+                  <button type="button"
+                    data-action="delete"
+                    data-id="{{ msg.id }}"
+                    class="delete-btn text-zinc-400 hover:text-red-400 px-2.5 py-1 rounded-lg hover:bg-red-500/10 transition cursor-pointer">
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </article>
+          {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Right Sidebar: Manage Profile + Friends List -->
+    <aside class="lg:col-span-4 space-y-6">
+      <!-- Profile & Photo Management Card -->
+      <div class="glass-card p-6 rounded-2xl space-y-5">
+        <div>
+          <h2 class="text-base font-bold text-white">Manage Profile & Photo</h2>
+          <p class="text-xs text-zinc-400 mt-0.5">Upload an avatar and customize your GhostLink page.</p>
+        </div>
+
+        <!-- Profile Photo Uploader -->
+        <div class="flex items-center gap-3.5 p-3 rounded-xl bg-zinc-950/70 border border-white/10">
+          <div id="sidebarAvatarPreview" class="shrink-0">
+            {% if user.avatar_url %}
+              <img src="{{ user.avatar_url }}" alt="Avatar" class="w-12 h-12 rounded-xl object-cover border border-violet-400/40" />
+            {% else %}
+              <div class="w-12 h-12 rounded-xl bg-violet-600/25 border border-violet-400/30 flex items-center justify-center font-bold text-violet-200 uppercase">
+                {{ user.display_name[0] }}
+              </div>
+            {% endif %}
+          </div>
+          <div class="flex-1 min-w-0">
+            <input type="file" id="avatarFileInput" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden" />
+            <button type="button" id="uploadAvatarBtn"
+              class="text-xs font-mono px-3 py-2 rounded-lg bg-violet-600/20 hover:bg-violet-600/35 text-violet-200 border border-violet-500/30 transition cursor-pointer">
+              Upload Profile Photo
+            </button>
+            <p class="text-[10px] font-mono text-zinc-500 mt-1">PNG, JPG, WEBP, GIF (max 4MB)</p>
+          </div>
+        </div>
+
+        <form id="profileForm" class="space-y-4">
+          <div>
+            <label for="editDisplayName" class="block text-[11px] font-mono text-zinc-400 mb-1">DISPLAY NAME</label>
+            <input type="text" id="editDisplayName" value="{{ user.display_name }}" maxlength="40" required
+              class="w-full bg-zinc-950/80 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500" />
+          </div>
+
+          <div>
+            <label for="editUsername" class="block text-[11px] font-mono text-zinc-400 mb-1">USERNAME (/u/...)</label>
+            <input type="text" id="editUsername" value="{{ user.username }}" minlength="3" maxlength="24" required
+              class="w-full bg-zinc-950/80 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:outline-none focus:border-violet-500" />
+          </div>
+
+          <div>
+            <label for="editBio" class="block text-[11px] font-mono text-zinc-400 mb-1">PUBLIC BIO</label>
+            <textarea id="editBio" rows="2" maxlength="160"
+              class="w-full bg-zinc-950/80 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-violet-500 resize-none">{{ user.bio }}</textarea>
+          </div>
+
+          <div>
+            <span class="block text-[11px] font-mono text-zinc-400 mb-2">THEME PRESET</span>
+            <input type="hidden" id="selectedTheme" value="{{ user.theme }}" />
+            <div class="grid grid-cols-3 gap-2" id="themeSelector">
+              {% for t_name, t_label, t_dot in [('midnight', 'Midnight', 'bg-indigo-400'), ('violet', 'Violet', 'bg-violet-500'), ('aurora', 'Aurora', 'bg-emerald-400')] %}
+                <button type="button" data-theme-choice="{{ t_name }}" id="themeBtn-{{ t_name }}"
+                  class="theme-option flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl border text-xs font-mono transition cursor-pointer {{ 'border-violet-400 bg-violet-600/20 text-white' if user.theme == t_name else 'border-white/10 bg-zinc-950/60 text-zinc-400 hover:text-white' }}">
+                  <span class="w-2 h-2 rounded-full {{ t_dot }}"></span>
+                  {{ t_label }}
+                </button>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div id="profileFeedback" class="hidden text-xs font-mono p-3 rounded-xl"></div>
+
+          <button type="submit" id="saveProfileBtn"
+            class="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-semibold text-sm py-3 rounded-xl transition cursor-pointer">
+            Save Changes
+          </button>
+        </form>
+      </div>
+
+      <!-- Friends Roster Card -->
+      <div class="glass-card p-6 rounded-2xl space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-base font-bold text-white">Your Friends</h2>
+          <a href="/explore" class="text-xs font-mono text-violet-300 hover:underline">+ Add Friend</a>
+        </div>
+
+        <div id="friendsListContainer" class="space-y-2.5">
+          {% if not friends %}
+            <p class="text-xs text-zinc-400">No friends added yet. Use <a href="/explore" class="text-violet-300 underline">Find Users</a> to connect.</p>
+          {% else %}
+            {% for f in friends %}
+              <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-zinc-950/60 border border-white/5" data-friend-row="{{ f.username }}">
+                <a href="/u/{{ f.username }}" class="flex items-center gap-2.5 min-w-0">
+                  {% if f.avatar_url %}
+                    <img src="{{ f.avatar_url }}" alt="{{ f.display_name }}" class="w-8 h-8 rounded-lg object-cover shrink-0" />
+                  {% else %}
+                    <div class="w-8 h-8 rounded-lg bg-violet-600/25 flex items-center justify-center text-xs font-bold text-violet-200 uppercase shrink-0">
+                      {{ f.display_name[0] }}
+                    </div>
+                  {% endif %}
+                  <div class="min-w-0">
+                    <div class="text-xs font-semibold text-white truncate">{{ f.display_name }}</div>
+                    <div class="text-[11px] font-mono text-violet-300 truncate">@{{ f.username }}</div>
+                  </div>
+                </a>
+                <button type="button" data-remove-friend="{{ f.username }}"
+                  class="text-[11px] font-mono text-zinc-500 hover:text-red-400 px-2 py-1 rounded transition cursor-pointer">
+                  Remove
+                </button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        </div>
+      </div>
+    </aside>
+  </section>
+</main>
+
+<script id="dashboardConfig" type="application/json">
+  {{ {"publicUrl": public_url} | tojson }}
+</script>
+
+<script>
+  const config = JSON.parse(document.getElementById("dashboardConfig").textContent);
+  let currentPublicUrl = config.publicUrl;
+  let currentFilter = "all";
+
+  function updateCounters(stats) {
+    document.getElementById("statUnread").innerText = stats.unread;
+    document.getElementById("statTotal").innerText = stats.total;
+    document.getElementById("inboxUnreadPill").innerText = `${stats.unread} unread`;
+  }
+
+  function showShareFeedback(msg, isError = false) {
+    const el = document.getElementById("shareFeedback");
+    el.innerText = msg;
+    el.className = `text-xs font-mono ${isError ? "text-amber-400" : "text-emerald-400"}`;
+    el.classList.remove("hidden");
+    setTimeout(() => el.classList.add("hidden"), 3000);
+  }
+
+  function fallbackCopyText(text) {
+    const temp = document.createElement("textarea");
+    temp.value = text;
+    temp.style.position = "fixed";
+    temp.style.opacity = "0";
+    document.body.appendChild(temp);
+    temp.select();
+    const ok = document.execCommand("copy");
+    temp.remove();
+    return ok;
+  }
+
+  async function copyGhostLink() {
+    const btn = document.getElementById("copyBtn");
+    let copied = false;
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(currentPublicUrl);
+        copied = true;
+      } catch {
+        copied = fallbackCopyText(currentPublicUrl);
+      }
+    } else {
+      copied = fallbackCopyText(currentPublicUrl);
+    }
+
+    if (copied) {
+      btn.innerText = "Copied!";
+      showShareFeedback("Personal GhostLink copied to clipboard.");
+      setTimeout(() => { btn.innerText = "Copy Link"; }, 2000);
+    } else {
+      showShareFeedback("Auto-copy blocked — select your link above and press Ctrl+C.", true);
+    }
+  }
+
+  async function shareGhostLink() {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Send me an anonymous message on GhostLink",
+          text: "Drop an honest anonymous message on my GhostLink:",
+          url: currentPublicUrl
+        });
+        return;
+      } catch (err) {
+        if (err && err.name === "AbortError") return;
+      }
+    }
+    await copyGhostLink();
+  }
+
+  function applyMessageFilter() {
+    document.querySelectorAll(".msg-card").forEach((card) => {
+      const isRead = card.getAttribute("data-read") === "1";
+      card.classList.toggle("hidden", currentFilter === "unread" && isRead);
+    });
+  }
+
+  function setFilter(mode) {
+    currentFilter = mode;
+    applyMessageFilter();
+    document.getElementById("filterAllBtn").className =
+      `filter-btn text-xs font-mono px-3 py-1.5 rounded-lg cursor-pointer ${mode === "all" ? "bg-violet-600 text-white" : "glass-card text-zinc-400 hover:text-white"}`;
+    document.getElementById("filterUnreadBtn").className =
+      `filter-btn text-xs font-mono px-3 py-1.5 rounded-lg cursor-pointer ${mode === "unread" ? "bg-violet-600 text-white" : "glass-card text-zinc-400 hover:text-white"}`;
+  }
+
+  function markCardAsReadUI(id) {
+    const card = document.getElementById(`msg-card-${id}`);
+    if (!card) return;
+    card.setAttribute("data-read", "1");
+    card.classList.remove("border-violet-500/50", "shadow-[0_0_20px_rgba(139,92,246,0.10)]");
+    card.classList.add("opacity-85");
+
+    const badge = document.getElementById(`badge-${id}`);
+    if (badge) {
+      badge.innerText = "READ";
+      badge.className = "status-badge text-[10px] font-mono px-2 py-0.5 rounded-md bg-white/5 text-zinc-500";
+    }
+
+    const readBtn = document.getElementById(`readBtn-${id}`);
+    if (readBtn) readBtn.remove();
+    applyMessageFilter();
+  }
+
+  async function markSingleRead(id) {
+    const res = await fetch(`/api/messages/${id}/read`, { method: "POST" });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      markCardAsReadUI(id);
+      updateCounters(data.stats);
+    }
+  }
+
+  async function markAllMessagesRead() {
+    const res = await fetch("/api/messages/read-all", { method: "POST" });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      document.querySelectorAll(".msg-card").forEach((card) => {
+        markCardAsReadUI(card.getAttribute("data-id"));
+      });
+      updateCounters(data.stats);
+    }
+  }
+
+  async function deleteSingleMessage(id) {
+    const res = await fetch(`/api/messages/${id}`, { method: "DELETE" });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      const card = document.getElementById(`msg-card-${id}`);
+      if (card) card.remove();
+      updateCounters(data.stats);
+      if (data.stats.total === 0) {
+        document.getElementById("inboxList").innerHTML = `
+          <div id="emptyInboxState" class="glass-card p-10 rounded-2xl text-center space-y-3">
+            <div class="text-2xl">👻</div>
+            <h3 class="text-base font-semibold text-white">Your GhostLink inbox is quiet</h3>
+            <p class="text-sm text-zinc-400 max-w-md mx-auto">Copy your link above and share it with friends to start receiving anonymous messages.</p>
+          </div>`;
+      }
+    }
+  }
+
+  async function reactToMessage(id, emoji) {
+    const res = await fetch(`/api/messages/${id}/react`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ emoji })
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      document.querySelectorAll(`.reaction-btn[data-id="${id}"]`).forEach((btn) => {
+        const isSelected = btn.getAttribute("data-emoji") === data.reaction;
+        btn.className = `reaction-btn text-sm px-2.5 py-1 rounded-lg border transition cursor-pointer ${
+          isSelected ? "bg-violet-600/30 border-violet-400" : "bg-zinc-950/60 border-white/5 hover:border-white/20"
+        }`;
+      });
+      markCardAsReadUI(id);
+      updateCounters(data.stats);
+    }
+  }
+
+  async function reportSingleMessage(id, triggerBtn) {
+    const res = await fetch(`/api/messages/${id}/report`, { method: "POST" });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      markCardAsReadUI(id);
+      updateCounters(data.stats);
+      if (triggerBtn) {
+        triggerBtn.innerText = "Reported";
+        triggerBtn.disabled = true;
+      }
+      const card = document.getElementById(`msg-card-${id}`);
+      const badgeGroup = card ? card.querySelector(".badge-group") : null;
+      if (badgeGroup && !badgeGroup.querySelector(".reported-badge")) {
+        const repBadge = document.createElement("span");
+        repBadge.className = "reported-badge text-[10px] font-mono px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30";
+        repBadge.innerText = "REPORTED";
+        badgeGroup.appendChild(repBadge);
+      }
+      showShareFeedback("Message flagged as reported.");
+    }
+  }
+
+  function selectTheme(themeName) {
+    document.getElementById("selectedTheme").value = themeName;
+    document.body.setAttribute("data-theme", themeName);
+    document.querySelectorAll(".theme-option").forEach((btn) => {
+      const active = btn.getAttribute("data-theme-choice") === themeName;
+      btn.className = `theme-option flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl border text-xs font-mono transition cursor-pointer ${
+        active ? "border-violet-400 bg-violet-600/20 text-white" : "border-white/10 bg-zinc-950/60 text-zinc-400 hover:text-white"
+      }`;
+    });
+  }
+
+  // Profile Photo Upload Handler
+  document.getElementById("uploadAvatarBtn").addEventListener("click", () => {
+    document.getElementById("avatarFileInput").click();
+  });
+
+  document.getElementById("avatarFileInput").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const feedback = document.getElementById("profileFeedback");
+    feedback.classList.add("hidden");
+
+    const formData = new FormData();
+    formData.append("avatar", file);
+
+    try {
+      const res = await fetch("/api/profile/avatar", { method: "POST", body: formData });
+      const data = await res.json();
+      feedback.classList.remove("hidden");
+      if (!res.ok || !data.ok) {
+        feedback.className = "text-xs font-mono p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300";
+        feedback.innerText = data.error || "Upload failed.";
+      } else {
+        feedback.className = "text-xs font-mono p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300";
+        feedback.innerText = data.message;
+        document.getElementById("headerAvatarContainer").innerHTML =
+          `<img src="${data.avatar_url}" alt="Avatar" class="w-16 h-16 rounded-2xl object-cover border border-violet-400/40" />`;
+        document.getElementById("sidebarAvatarPreview").innerHTML =
+          `<img src="${data.avatar_url}" alt="Avatar" class="w-12 h-12 rounded-xl object-cover border border-violet-400/40" />`;
+      }
+    } catch {
+      feedback.classList.remove("hidden");
+      feedback.className = "text-xs font-mono p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300";
+      feedback.innerText = "Network error uploading avatar.";
+    } finally {
+      e.target.value = "";
+    }
+  });
+
+  async function saveProfileSettings(e) {
+    e.preventDefault();
+    const btn = document.getElementById("saveProfileBtn");
+    const feedback = document.getElementById("profileFeedback");
+    feedback.classList.add("hidden");
+    btn.disabled = true;
+    btn.innerText = "Saving...";
+
+    const payload = {
+      display_name: document.getElementById("editDisplayName").value,
+      username: document.getElementById("editUsername").value,
+      bio: document.getElementById("editBio").value,
+      theme: document.getElementById("selectedTheme").value
+    };
+
+    try {
+      const res = await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+
+      feedback.classList.remove("hidden");
+      if (!res.ok || !data.ok) {
+        feedback.className = "text-xs font-mono p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300";
+        feedback.innerText = data.error || "Could not save profile.";
+      } else {
+        feedback.className = "text-xs font-mono p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300";
+        feedback.innerText = data.message;
+        document.getElementById("headerDisplayName").innerText = data.user.display_name;
+        document.getElementById("headerBio").innerText = data.user.bio || "";
+        document.getElementById("personalLinkText").innerText = data.public_url;
+        document.getElementById("publicPageLink").href = `/u/${encodeURIComponent(data.user.username)}`;
+        currentPublicUrl = data.public_url;
+      }
+    } finally {
+      btn.disabled = false;
+      btn.innerText = "Save Changes";
+    }
+  }
+
+  // Friend Removal in Sidebar
+  document.getElementById("friendsListContainer").addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-remove-friend]");
+    if (!btn) return;
+    const username = btn.getAttribute("data-remove-friend");
+    const res = await fetch("/api/friends/remove", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username })
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      const row = document.querySelector(`[data-friend-row="${CSS.escape(username)}"]`);
+      if (row) row.remove();
+      document.getElementById("statFriends").innerText = data.friends.length;
+      if (data.friends.length === 0) {
+        document.getElementById("friendsListContainer").innerHTML =
+          `<p class="text-xs text-zinc-400">No friends added yet. Use <a href="/explore" class="text-violet-300 underline">Find Users</a> to connect.</p>`;
+      }
+    }
+  });
+
+  document.getElementById("copyBtn").addEventListener("click", copyGhostLink);
+  document.getElementById("shareBtn").addEventListener("click", shareGhostLink);
+  document.getElementById("filterAllBtn").addEventListener("click", () => setFilter("all"));
+  document.getElementById("filterUnreadBtn").addEventListener("click", () => setFilter("unread"));
+  document.getElementById("markAllReadBtn").addEventListener("click", markAllMessagesRead);
+  document.getElementById("profileForm").addEventListener("submit", saveProfileSettings);
+
+  document.getElementById("themeSelector").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-theme-choice]");
+    if (btn) selectTheme(btn.getAttribute("data-theme-choice"));
+  });
+
+  document.getElementById("inboxList").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-action]");
+    if (!btn) return;
+    const action = btn.getAttribute("data-action");
+    const id = btn.getAttribute("data-id");
+
+    if (action === "read") markSingleRead(id);
+    else if (action === "delete") deleteSingleMessage(id);
+    else if (action === "report") reportSingleMessage(id, btn);
+    else if (action === "react") reactToMessage(id, btn.getAttribute("data-emoji"));
+  });
+</script>
+{% endblock %}

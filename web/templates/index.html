@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GhostLink Live — Ephemeral TCP Socket Room</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #07070c;
+      background-image: 
+        radial-gradient(circle at 15% 20%, rgba(139, 92, 246, 0.14) 0%, transparent 45%),
+        radial-gradient(circle at 85% 75%, rgba(168, 85, 247, 0.08) 0%, transparent 45%);
+    }
+    .glass {
+      background: rgba(19, 19, 28, 0.72);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    #meshCanvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body class="text-zinc-100 font-sans antialiased min-h-screen flex flex-col justify-between selection:bg-violet-500/30 selection:text-violet-200 relative overflow-x-hidden">
+
+  <canvas id="meshCanvas"></canvas>
+
+  <header class="w-full border-b border-white/5 backdrop-blur-md sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3 cursor-pointer" onclick="leaveRoom()">
+        <div class="w-8 h-8 rounded-lg glass flex items-center justify-center border-violet-500/30">
+          <span class="w-2.5 h-2.5 rounded-full bg-violet-400 animate-pulse"></span>
+        </div>
+        <span class="font-mono font-semibold tracking-wider text-lg text-white">GHOST<span class="text-violet-400">LINK</span> <span class="text-xs text-zinc-500">// TCP</span></span>
+      </div>
+
+      <div class="flex items-center gap-4">
+        <a href="/" class="text-xs font-mono text-zinc-300 hover:text-violet-400 transition px-3 py-1.5 rounded-md glass">
+          ← Anonymous Inbox
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main id="heroView" class="relative z-10 max-w-6xl mx-auto px-6 py-16 flex-grow flex flex-col justify-center">
+    <div class="grid lg:grid-cols-12 gap-12 items-center">
+      <div class="lg:col-span-7 space-y-6">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full glass text-xs font-mono text-violet-300 border-violet-500/20">
+          <span>ZERO-DISK EPHEMERAL RELAY + TTL BURN</span>
+        </div>
+
+        <h1 class="text-4xl sm:text-5xl font-bold tracking-tight leading-[1.1] text-white">
+          Speak in the dark.<br />
+          <span class="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400">
+            Leave zero trace.
+          </span>
+        </h1>
+
+        <p class="text-zinc-400 text-base max-w-xl leading-relaxed">
+          Multi-threaded Python TCP socket communication engineered for volatile memory. Messages and files are encrypted client-side and wiped from RAM on disconnect.
+        </p>
+
+        <div class="glass p-5 rounded-2xl max-w-xl space-y-4">
+          <div class="flex flex-col sm:flex-row gap-3">
+            <input id="aliasInput" type="text" placeholder="Enter handle (e.g., yash)"
+              class="flex-1 bg-zinc-950/80 border border-white/10 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-zinc-500 focus:outline-none focus:border-violet-400 transition" />
+            <button onclick="spawnRoom()"
+              class="bg-violet-600 hover:bg-violet-500 text-white font-semibold text-sm px-6 py-3 rounded-xl transition cursor-pointer whitespace-nowrap">
+              + Spawn Room
+            </button>
+          </div>
+
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
+            <input id="roomCodeInput" type="text" placeholder="Room ID (e.g., GL-9X2A)"
+              class="flex-1 bg-zinc-950/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-mono text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-violet-400 transition" />
+            <input id="secretKeyInput" type="password" placeholder="Passphrase (optional)"
+              class="flex-1 bg-zinc-950/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-mono text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-violet-400 transition" />
+            <button onclick="joinExistingRoom()"
+              class="glass hover:border-violet-400/50 text-violet-300 font-mono text-xs px-5 py-2.5 rounded-xl transition cursor-pointer whitespace-nowrap">
+              Connect →
+            </button>
+          </div>
+          <p id="statusFeedback" class="text-xs font-mono text-amber-400 hidden"></p>
+        </div>
+      </div>
+
+      <div class="lg:col-span-5">
+        <div class="glass rounded-2xl overflow-hidden shadow-2xl border-white/10">
+          <div class="bg-zinc-950/80 px-4 py-3 border-b border-white/5 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-red-500/80"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-500/80"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500/80"></span>
+            </div>
+            <span class="text-[11px] font-mono text-zinc-500">tcp://127.0.0.1:9090 [RAM_BUFFER]</span>
+          </div>
+
+          <div class="p-5 font-mono text-xs space-y-3 leading-relaxed">
+            <div class="text-zinc-500">[SYS] Socket thread initialized. Disk I/O: DISABLED.</div>
+            <div class="text-violet-400">[KEY] Ephemeral AES-256 session key derived locally.</div>
+            <div class="p-3 rounded-lg bg-zinc-950/70 border border-white/5 space-y-1">
+              <div class="text-zinc-300"><span class="text-violet-400">yash:</span> Pushing the socket relay update tonight.</div>
+              <div class="text-[10px] text-zinc-600">FERNET: gAAAAABn...9f86d081884c7d65...</div>
+            </div>
+            <div class="p-3 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-200">
+              <span class="font-semibold">[GHOSTBOT]</span> Press <span class="underline">ESC twice</span> anytime for an instant Panic Nuke.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <section id="chatView" class="hidden relative z-10 max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 flex-grow flex flex-col">
+    <div class="glass rounded-2xl flex flex-col flex-grow overflow-hidden border-white/10 shadow-2xl min-h-[75vh]">
+      <div class="bg-zinc-950/80 px-5 py-3.5 border-b border-white/10 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <span class="w-2.5 h-2.5 rounded-full bg-violet-400 animate-ping"></span>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-mono text-sm font-semibold text-white">ROOM: <span id="activeRoomBadge" class="text-violet-400"></span></span>
+              <button onclick="copyRoomCode()" class="text-[11px] font-mono px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-zinc-300 transition cursor-pointer">
+                Copy ID
+              </button>
+            </div>
+            <div id="peerRoster" class="flex flex-wrap items-center gap-1.5 mt-1 text-[11px] font-mono text-zinc-400"></div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <button onclick="sendQuickCommand('/ghost summary')" class="text-xs font-mono px-3 py-1.5 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-violet-300 border border-violet-500/20 transition cursor-pointer">
+            /ghost summary
+          </button>
+          <button onclick="sendQuickCommand('/flush')" class="text-xs font-mono px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 transition cursor-pointer">
+            Flush RAM
+          </button>
+          <button onclick="panicNuke()" class="text-xs font-mono px-3 py-1.5 rounded-lg bg-red-600/20 hover:bg-red-600/40 text-red-300 border border-red-500/40 transition cursor-pointer font-semibold">
+            ☢ Panic Nuke
+          </button>
+        </div>
+      </div>
+
+      <div id="messageFeed" class="flex-grow p-5 space-y-3 overflow-y-auto font-mono text-xs max-h-[55vh]"></div>
+      <div id="typingIndicator" class="px-5 py-1.5 text-[11px] font-mono text-violet-400/80 h-6"></div>
+
+      <form onsubmit="handleSendMessage(event)" class="bg-zinc-950/80 p-4 border-t border-white/10 flex flex-wrap sm:flex-nowrap items-center gap-2.5">
+        <input type="file" id="fileInput" class="hidden" onchange="handleFileUpload(event)" />
+        <button type="button" onclick="document.getElementById('fileInput').click()"
+          class="bg-zinc-900 hover:bg-zinc-800 border border-white/10 text-violet-400 font-mono text-sm px-3.5 py-3 rounded-xl transition cursor-pointer">
+          + File
+        </button>
+
+        <input id="chatInput" type="text" autocomplete="off" oninput="notifyTyping()"
+          placeholder="Type encrypted message or /ghost summary..."
+          class="flex-1 bg-zinc-900/90 border border-white/10 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-zinc-500 focus:outline-none focus:border-violet-400 transition" />
+
+        <select id="ttlSelect" class="bg-zinc-900/90 border border-white/10 rounded-xl px-3 py-3 text-xs font-mono text-zinc-300 focus:outline-none focus:border-violet-400 cursor-pointer">
+          <option value="0">TTL: Off</option>
+          <option value="10">10s Burn</option>
+          <option value="30">30s Burn</option>
+          <option value="60">60s Burn</option>
+        </select>
+
+        <button type="submit" class="bg-violet-600 hover:bg-violet-500 text-white font-semibold text-sm px-6 py-3 rounded-xl transition cursor-pointer">
+          Send
+        </button>
+      </form>
+    </div>
+  </section>
+
+  <footer class="relative z-10 border-t border-white/5 py-5 text-center text-xs font-mono text-zinc-600">
+    GHOSTLINK // EPHEMERAL TCP ENGINE
+  </footer>
+
+  <script>
+    const socket = io();
+    let currentAlias = "";
+    let currentRoom = "";
+    let lastTypingEmit = 0;
+    let typingClearTimer = null;
+    let lastEscTime = 0;
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && currentRoom) {
+        const now = Date.now();
+        if (now - lastEscTime < 600) panicNuke();
+        lastEscTime = now;
+      }
+    });
+
+    function spawnRoom() {
+      const alias = document.getElementById("aliasInput").value.trim() || "ghost_" + Math.floor(100 + Math.random() * 900);
+      const roomCode = "GL-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+      const secret = document.getElementById("secretKeyInput").value.trim() || roomCode;
+      enterTcpRoom(alias, roomCode, secret);
+    }
+
+    function joinExistingRoom() {
+      const alias = document.getElementById("aliasInput").value.trim() || "ghost_" + Math.floor(100 + Math.random() * 900);
+      const roomCode = document.getElementById("roomCodeInput").value.trim().toUpperCase();
+      const secret = document.getElementById("secretKeyInput").value.trim() || roomCode;
+      const feedback = document.getElementById("statusFeedback");
+      if (!roomCode) {
+        feedback.classList.remove("hidden");
+        feedback.innerText = "[!] Enter a valid Room ID to connect.";
+        return;
+      }
+      feedback.classList.add("hidden");
+      enterTcpRoom(alias, roomCode, secret);
+    }
+
+    function enterTcpRoom(alias, room, secret) {
+      currentAlias = alias;
+      currentRoom = room;
+      document.getElementById("messageFeed").innerHTML = "";
+      document.getElementById("activeRoomBadge").innerText = room;
+      document.getElementById("heroView").classList.add("hidden");
+      document.getElementById("chatView").classList.remove("hidden");
+      socket.emit("join_room_tcp", { alias, room, secret });
+      document.getElementById("chatInput").focus();
+    }
+
+    function handleSendMessage(e) {
+      e.preventDefault();
+      const input = document.getElementById("chatInput");
+      const ttl = parseInt(document.getElementById("ttlSelect").value, 10) || 0;
+      const text = input.value.trim();
+      if (!text) return;
+      socket.emit("send_message_tcp", { text, ttl });
+      input.value = "";
+    }
+
+    function handleFileUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) {
+        appendSystemBanner("File exceeds 2MB RAM-only limit.");
+        e.target.value = "";
+        return;
+      }
+      const ttl = parseInt(document.getElementById("ttlSelect").value, 10) || 0;
+      const reader = new FileReader();
+      reader.onload = () => {
+        socket.emit("send_file_tcp", {
+          filename: file.name,
+          mime_type: file.type || "application/octet-stream",
+          data_url: reader.result,
+          ttl,
+        });
+      };
+      reader.readAsDataURL(file);
+      e.target.value = "";
+    }
+
+    function notifyTyping() {
+      const now = Date.now();
+      if (now - lastTypingEmit > 1500) {
+        socket.emit("typing_tcp");
+        lastTypingEmit = now;
+      }
+    }
+
+    function sendQuickCommand(cmd) {
+      socket.emit("send_message_tcp", { text: cmd, ttl: 0 });
+    }
+
+    function panicNuke() {
+      if (!currentRoom) return;
+      socket.emit("send_message_tcp", { text: "/flush", ttl: 0 });
+      document.getElementById("messageFeed").innerHTML = "";
+      setTimeout(() => leaveRoom(), 120);
+    }
+
+    function leaveRoom() {
+      if (!currentRoom) return;
+      currentRoom = "";
+      document.getElementById("messageFeed").innerHTML = "";
+      document.getElementById("chatView").classList.add("hidden");
+      document.getElementById("heroView").classList.remove("hidden");
+      socket.disconnect();
+      socket.connect();
+    }
+
+    function copyRoomCode() {
+      navigator.clipboard.writeText(currentRoom);
+      appendSystemBanner(`Copied Room ID (${currentRoom}) to clipboard.`);
+    }
+
+    socket.on("tcp_packet", (pkt) => {
+      if (pkt.type === "peers") {
+        const roster = document.getElementById("peerRoster");
+        roster.innerHTML = `<span class="text-zinc-500">Peers (${pkt.peers.length}):</span> ` +
+          pkt.peers.map(p => `<span class="px-2 py-0.5 rounded bg-violet-500/15 text-violet-300 border border-violet-500/25">@${escapeHtml(p)}</span>`).join(" ");
+        return;
+      }
+      if (pkt.type === "typing") {
+        const indicator = document.getElementById("typingIndicator");
+        indicator.innerText = `@${pkt.sender} is typing an encrypted packet...`;
+        clearTimeout(typingClearTimer);
+        typingClearTimer = setTimeout(() => { indicator.innerText = ""; }, 2000);
+        return;
+      }
+      const feed = document.getElementById("messageFeed");
+      const wrapper = document.createElement("div");
+
+      if (pkt.type === "sys") {
+        wrapper.className = "text-zinc-500 py-1";
+        wrapper.innerText = `[SYS] ${pkt.text}`;
+      } else if (pkt.type === "blocked") {
+        wrapper.className = "p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300";
+        wrapper.innerHTML = `<span class="font-semibold">[AI PRIVACY GUARD]</span> ${escapeHtml(pkt.text)}`;
+      } else if (pkt.type === "bot") {
+        wrapper.className = "p-3 rounded-xl bg-violet-500/10 border border-violet-500/30 text-violet-200 whitespace-pre-wrap";
+        wrapper.innerHTML = `<span class="font-semibold">[GHOSTBOT]</span> ${escapeHtml(pkt.text)}`;
+      } else if (pkt.type === "file") {
+        const isSelf = pkt.sender === currentAlias;
+        const isImage = pkt.mime_type && pkt.mime_type.startsWith("image/");
+        const ttlBadge = pkt.ttl > 0 ? `<span class="text-amber-400 ml-2">[BURN: ${pkt.ttl}s]</span>` : "";
+        wrapper.className = `p-3.5 rounded-xl border ${isSelf ? "bg-violet-950/30 border-violet-500/30 ml-8" : "bg-zinc-900/80 border-white/10 mr-8"}`;
+        const previewHtml = isImage ? `<img src="${pkt.data_url}" class="max-h-56 rounded-lg mt-2 border border-white/10" />` : "";
+        wrapper.innerHTML = `
+          <div class="flex items-center justify-between mb-1">
+            <span class="${isSelf ? "text-violet-400" : "text-fuchsia-400"} font-semibold">@${escapeHtml(pkt.sender)}${ttlBadge}</span>
+            <span class="text-[10px] text-zinc-500">RAM-ONLY FILE DROP</span>
+          </div>
+          <a href="${pkt.data_url}" download="${escapeHtml(pkt.filename)}" class="inline-block mt-1 text-xs text-violet-300 underline hover:text-violet-200">
+            ↓ Download ${escapeHtml(pkt.filename)}
+          </a>
+          ${previewHtml}
+        `;
+        attachBurnTimer(wrapper, pkt.ttl);
+      } else {
+        const isSelf = pkt.sender === currentAlias;
+        const ttlBadge = pkt.ttl > 0 ? `<span class="text-amber-400 ml-2">[BURN: ${pkt.ttl}s]</span>` : "";
+        wrapper.className = `p-3.5 rounded-xl border ${isSelf ? "bg-violet-950/30 border-violet-500/30 ml-8" : "bg-zinc-900/80 border-white/10 mr-8"}`;
+        wrapper.innerHTML = `
+          <div class="flex items-center justify-between mb-1">
+            <span class="${isSelf ? "text-violet-400" : "text-fuchsia-400"} font-semibold">@${escapeHtml(pkt.sender)}${ttlBadge}</span>
+            <span class="text-[10px] text-zinc-600">AES-256 VERIFIED</span>
+          </div>
+          <div class="text-zinc-100 text-sm font-sans break-words">${escapeHtml(pkt.text)}</div>
+          <div class="text-[10px] text-zinc-600 mt-1.5 truncate">CIPHER: ${escapeHtml(pkt.cipher_preview || "")}</div>
+        `;
+        attachBurnTimer(wrapper, pkt.ttl);
+      }
+      feed.appendChild(wrapper);
+      feed.scrollTop = feed.scrollHeight;
+    });
+
+    function attachBurnTimer(el, ttl) {
+      if (ttl > 0) {
+        setTimeout(() => {
+          el.style.transition = "opacity 0.4s ease";
+          el.style.opacity = "0";
+          setTimeout(() => el.remove(), 400);
+        }, ttl * 1000);
+      }
+    }
+
+    function appendSystemBanner(msg) {
+      const feed = document.getElementById("messageFeed");
+      const div = document.createElement("div");
+      div.className = "text-violet-400 py-1";
+      div.innerText = `[+] ${msg}`;
+      feed.appendChild(div);
+      feed.scrollTop = feed.scrollHeight;
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, (m) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+      }[m]));
+    }
+
+    const canvas = document.getElementById("meshCanvas");
+    const ctx = canvas.getContext("2d");
+    let nodes = [];
+    const mouse = { x: null, y: null };
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener("resize", resizeCanvas);
+    window.addEventListener("mousemove", (e) => { mouse.x = e.x; mouse.y = e.y; });
+    resizeCanvas();
+
+    for (let i = 0; i < 45; i++) {
+      nodes.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * 0.45,
+        vy: (Math.random() - 0.5) * 0.45
+      });
+    }
+
+    function animateMesh() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let i = 0; i < nodes.length; i++) {
+        const n = nodes[i];
+        n.x += n.vx;
+        n.y += n.vy;
+        if (n.x < 0 || n.x > canvas.width) n.vx *= -1;
+        if (n.y < 0 || n.y > canvas.height) n.vy *= -1;
+
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(139, 92, 246, 0.40)";
+        ctx.fill();
+
+        for (let j = i + 1; j < nodes.length; j++) {
+          const m = nodes[j];
+          const dist = Math.hypot(n.x - m.x, n.y - m.y);
+          if (dist < 140) {
+            ctx.beginPath();
+            ctx.moveTo(n.x, n.y);
+            ctx.lineTo(m.x, m.y);
+            ctx.strokeStyle = `rgba(139, 92, 246, ${0.14 * (1 - dist / 140)})`;
+            ctx.stroke();
+          }
+        }
+
+        if (mouse.x !== null) {
+          const mDist = Math.hypot(n.x - mouse.x, n.y - mouse.y);
+          if (mDist < 170) {
+            ctx.beginPath();
+            ctx.moveTo(n.x, n.y);
+            ctx.lineTo(mouse.x, mouse.y);
+            ctx.strokeStyle = `rgba(217, 70, 239, ${0.24 * (1 - mDist / 170)})`;
+            ctx.stroke();
+          }
+        }
+      }
+      requestAnimationFrame(animateMesh);
+    }
+    animateMesh();
+  </script>
+</body>
+</html>

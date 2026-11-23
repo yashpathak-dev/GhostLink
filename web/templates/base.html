@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}GhostLink — Anonymous Social & Inbox{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    :root {
+      --bg-base: #07070c;
+      --glow-1: rgba(139, 92, 246, 0.16);
+      --glow-2: rgba(168, 85, 247, 0.10);
+      --accent: #a855f7;
+      --accent-soft: rgba(139, 92, 246, 0.16);
+      --accent-border: rgba(139, 92, 246, 0.35);
+      --particle-rgb: 168, 85, 247;
+    }
+    body[data-theme="midnight"] {
+      --bg-base: #05060a;
+      --glow-1: rgba(99, 102, 241, 0.16);
+      --glow-2: rgba(59, 130, 246, 0.09);
+      --accent: #818cf8;
+      --accent-soft: rgba(99, 102, 241, 0.16);
+      --accent-border: rgba(129, 140, 248, 0.38);
+      --particle-rgb: 129, 140, 248;
+    }
+    body[data-theme="violet"] {
+      --bg-base: #08060e;
+      --glow-1: rgba(139, 92, 246, 0.18);
+      --glow-2: rgba(217, 70, 239, 0.10);
+      --accent: #a855f7;
+      --accent-soft: rgba(168, 85, 247, 0.16);
+      --accent-border: rgba(168, 85, 247, 0.38);
+      --particle-rgb: 168, 85, 247;
+    }
+    body[data-theme="aurora"] {
+      --bg-base: #060a0e;
+      --glow-1: rgba(139, 92, 246, 0.16);
+      --glow-2: rgba(16, 185, 129, 0.13);
+      --accent: #34d399;
+      --accent-soft: rgba(52, 211, 153, 0.14);
+      --accent-border: rgba(52, 211, 153, 0.35);
+      --particle-rgb: 52, 211, 153;
+    }
+    body {
+      background-color: var(--bg-base);
+      background-image:
+        radial-gradient(circle at 15% 15%, var(--glow-1) 0%, transparent 45%),
+        radial-gradient(circle at 85% 80%, var(--glow-2) 0%, transparent 45%);
+      transition: background-color 0.25s ease;
+    }
+    #liveBgCanvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+    .glass-card {
+      background: rgba(19, 19, 28, 0.72);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .theme-border {
+      border-color: var(--accent-border);
+    }
+    .theme-badge {
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-border);
+      color: var(--accent);
+    }
+  </style>
+</head>
+<body data-theme="{{ active_theme | default('violet') }}" class="text-zinc-100 font-sans antialiased min-h-screen flex flex-col justify-between selection:bg-violet-500/30 selection:text-violet-200 relative overflow-x-hidden">
+  <!-- Live Interactive Constellation Background -->
+  <canvas id="liveBgCanvas"></canvas>
+
+  <div class="relative z-10 flex flex-col min-h-screen justify-between">
+    {% block content %}{% endblock %}
+  </div>
+
+  <script>
+    (function initLiveBackground() {
+      const canvas = document.getElementById("liveBgCanvas");
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      const mouse = { x: null, y: null };
+      const nodes = [];
+
+      function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+      window.addEventListener("resize", resize);
+      window.addEventListener("mousemove", (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
+      window.addEventListener("mouseleave", () => { mouse.x = null; mouse.y = null; });
+      resize();
+
+      const count = Math.min(55, Math.floor((window.innerWidth * window.innerHeight) / 22000));
+      for (let i = 0; i < Math.max(28, count); i++) {
+        nodes.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          vx: (Math.random() - 0.5) * 0.42,
+          vy: (Math.random() - 0.5) * 0.42,
+          r: 1.3 + Math.random() * 1.2
+        });
+      }
+
+      function getRgb() {
+        return getComputedStyle(document.body).getPropertyValue("--particle-rgb").trim() || "168, 85, 247";
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const rgb = getRgb();
+
+        for (let i = 0; i < nodes.length; i++) {
+          const a = nodes[i];
+          a.x += a.vx;
+          a.y += a.vy;
+          if (a.x < 0 || a.x > canvas.width) a.vx *= -1;
+          if (a.y < 0 || a.y > canvas.height) a.vy *= -1;
+
+          ctx.beginPath();
+          ctx.arc(a.x, a.y, a.r, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${rgb}, 0.45)`;
+          ctx.fill();
+
+          for (let j = i + 1; j < nodes.length; j++) {
+            const b = nodes[j];
+            const dist = Math.hypot(a.x - b.x, a.y - b.y);
+            if (dist < 145) {
+              ctx.beginPath();
+              ctx.moveTo(a.x, a.y);
+              ctx.lineTo(b.x, b.y);
+              ctx.strokeStyle = `rgba(${rgb}, ${0.15 * (1 - dist / 145)})`;
+              ctx.lineWidth = 1;
+              ctx.stroke();
+            }
+          }
+
+          if (mouse.x !== null) {
+            const mDist = Math.hypot(a.x - mouse.x, a.y - mouse.y);
+            if (mDist < 180) {
+              ctx.beginPath();
+              ctx.moveTo(a.x, a.y);
+              ctx.lineTo(mouse.x, mouse.y);
+              ctx.strokeStyle = `rgba(${rgb}, ${0.30 * (1 - mDist / 180)})`;
+              ctx.lineWidth = 1.1;
+              ctx.stroke();
+            }
+          }
+        }
+        requestAnimationFrame(draw);
+      }
+      draw();
+    })();
+  </script>
+</body>
+</html>

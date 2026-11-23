@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% set active_theme = profile.theme if profile else 'violet' %}
+{% block title %}{{ profile.display_name ~ ' (@' ~ profile.username ~ ') — GhostLink' if profile else 'User Not Found — GhostLink' }}{% endblock %}
+
+{% block content %}
+<header class="w-full border-b border-white/5 backdrop-blur-md">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+    <a href="/" class="flex items-center gap-2">
+      <span class="w-2.5 h-2.5 rounded-full bg-violet-500"></span>
+      <span class="font-mono font-semibold tracking-wider text-base text-white">GHOST<span class="text-violet-400">LINK</span></span>
+    </a>
+    <div class="flex items-center gap-2.5">
+      <a href="/explore" class="text-xs font-mono text-zinc-300 hover:text-violet-300 px-3 py-1.5 rounded-lg border border-white/10 transition">
+        Find Users
+      </a>
+      {% if viewer %}
+        <a href="/dashboard" class="text-xs font-mono px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white transition">
+          Dashboard
+        </a>
+      {% else %}
+        <a href="/auth?mode=register" class="text-xs font-mono px-3 py-1.5 rounded-lg theme-badge hover:opacity-90 transition">
+          Get your own link
+        </a>
+      {% endif %}
+    </div>
+  </div>
+</header>
+
+<main class="max-w-xl w-full mx-auto px-4 py-10 sm:py-14 flex-grow flex flex-col justify-center">
+  {% if not profile %}
+    <div class="glass-card p-8 rounded-2xl text-center space-y-4">
+      <div class="text-3xl font-mono text-violet-400">404</div>
+      <h1 class="text-xl font-bold text-white">GhostLink Not Found</h1>
+      <p class="text-sm text-zinc-400">This username hasn't been claimed yet—or the link was changed.</p>
+      <a href="/explore" class="inline-block bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition">
+        Browse Directory
+      </a>
+    </div>
+  {% else %}
+    <div class="glass-card theme-border rounded-3xl overflow-hidden shadow-2xl">
+      <div class="p-6 sm:p-8 bg-gradient-to-br from-violet-600/20 via-fuchsia-600/10 to-transparent border-b border-white/10">
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex items-center gap-4 min-w-0">
+            {% if profile.avatar_url %}
+              <img src="{{ profile.avatar_url }}" alt="{{ profile.display_name }}" class="w-16 h-16 rounded-2xl object-cover border border-violet-400/40 shrink-0" />
+            {% else %}
+              <div class="w-16 h-16 rounded-2xl bg-violet-600/30 border border-violet-400/40 flex items-center justify-center text-2xl font-bold text-violet-200 uppercase shrink-0">
+                {{ profile.display_name[0] }}
+              </div>
+            {% endif %}
+            <div class="min-w-0">
+              <h1 class="text-xl sm:text-2xl font-bold text-white truncate">{{ profile.display_name }}</h1>
+              <p class="text-xs font-mono text-violet-300">@{{ profile.username }}</p>
+            </div>
+          </div>
+
+          {% if viewer and viewer.id != profile.id %}
+            <button type="button" id="profileFriendBtn"
+              data-username="{{ profile.username }}"
+              data-is-friend="{{ '1' if already_friend else '0' }}"
+              class="shrink-0 text-xs font-mono px-4 py-2 rounded-xl border transition cursor-pointer {{ 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' if already_friend else 'bg-violet-600/20 border-violet-400/40 text-violet-200 hover:bg-violet-600/35' }}">
+              {{ '✓ Friends' if already_friend else '+ Add Friend' }}
+            </button>
+          {% elif viewer and viewer.id == profile.id %}
+            <a href="/dashboard" class="shrink-0 text-xs font-mono px-3.5 py-2 rounded-xl glass-card border-white/15 text-zinc-200 hover:border-violet-400/50 transition">
+              Edit Profile
+            </a>
+          {% endif %}
+        </div>
+        {% if profile.bio %}
+          <p class="mt-4 text-sm text-zinc-300 leading-relaxed">{{ profile.bio }}</p>
+        {% endif %}
+      </div>
+
+      <div class="p-6 sm:p-8 space-y-4">
+        <div class="flex items-center justify-between text-xs font-mono text-zinc-400">
+          <span>SEND AN ANONYMOUS MESSAGE</span>
+          <span id="charCount">0 / 500</span>
+        </div>
+
+        <textarea
+          id="anonMessageInput"
+          rows="4"
+          maxlength="500"
+          placeholder="Ask anything or leave an honest note... Your identity is never recorded."
+          class="w-full bg-zinc-950/80 border border-white/10 rounded-2xl p-4 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-violet-500 transition resize-none"
+        ></textarea>
+
+        <div id="errorBanner" class="hidden p-3.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-mono"></div>
+        <div id="successBanner" class="hidden p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-mono space-y-2">
+          <div id="successText"></div>
+          <button type="button" id="sendAnotherBtn" class="underline text-emerald-200 hover:text-white cursor-pointer">
+            Send another anonymous message
+          </button>
+        </div>
+
+        <button
+          id="sendAnonBtn"
+          type="button"
+          class="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-semibold text-sm py-3.5 rounded-xl transition cursor-pointer shadow-lg shadow-violet-600/20">
+          Send Anonymously
+        </button>
+
+        <div class="pt-2 flex items-center justify-center gap-2 text-[11px] font-mono text-zinc-500">
+          <span>🔒 No account needed • No IP or device tracking</span>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</main>
+
+<script id="profileConfig" type="application/json">
+  {{ {"username": profile.username if profile else ""} | tojson }}
+</script>
+
+<script>
+  const profileCfg = JSON.parse(document.getElementById("profileConfig").textContent);
+  const textarea = document.getElementById("anonMessageInput");
+  const counter = document.getElementById("charCount");
+
+  if (textarea && counter) {
+    textarea.addEventListener("input", () => {
+      counter.innerText = `${textarea.value.length} / 500`;
+      counter.classList.toggle("text-amber-400", textarea.value.length > 450);
+    });
+  }
+
+  const friendBtn = document.getElementById("profileFriendBtn");
+  if (friendBtn) {
+    friendBtn.addEventListener("click", async () => {
+      const isAdded = friendBtn.getAttribute("data-is-friend") === "1";
+      const endpoint = isAdded ? "/api/friends/remove" : "/api/friends/add";
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: friendBtn.getAttribute("data-username") })
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        const nowAdded = !isAdded;
+        friendBtn.setAttribute("data-is-friend", nowAdded ? "1" : "0");
+        friendBtn.innerText = nowAdded ? "✓ Friends" : "+ Add Friend";
+        friendBtn.className = `shrink-0 text-xs font-mono px-4 py-2 rounded-xl border transition cursor-pointer ${
+          nowAdded ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300" : "bg-violet-600/20 border-violet-400/40 text-violet-200 hover:bg-violet-600/35"
+        }`;
+      }
+    });
+  }
+
+  const sendBtn = document.getElementById("sendAnonBtn");
+  if (sendBtn) {
+    sendBtn.addEventListener("click", async () => {
+      const errBox = document.getElementById("errorBanner");
+      const okBox = document.getElementById("successBanner");
+      errBox.classList.add("hidden");
+      okBox.classList.add("hidden");
+
+      const content = textarea.value.trim();
+      if (!content) {
+        errBox.innerText = "Please type a message before sending.";
+        errBox.classList.remove("hidden");
+        return;
+      }
+
+      sendBtn.disabled = true;
+      sendBtn.innerText = "Encrypting & Delivering...";
+
+      try {
+        const res = await fetch(`/api/u/${encodeURIComponent(profileCfg.username)}/send`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          errBox.innerText = data.error || "Failed to send message.";
+          errBox.classList.remove("hidden");
+        } else {
+          textarea.value = "";
+          counter.innerText = "0 / 500";
+          document.getElementById("successText").innerText = data.message;
+          okBox.classList.remove("hidden");
+        }
+      } catch {
+        errBox.innerText = "Network error. Please try again.";
+        errBox.classList.remove("hidden");
+      } finally {
+        sendBtn.disabled = false;
+        sendBtn.innerText = "Send Anonymously";
+      }
+    });
+  }
+
+  const sendAnotherBtn = document.getElementById("sendAnotherBtn");
+  if (sendAnotherBtn) {
+    sendAnotherBtn.addEventListener("click", () => {
+      document.getElementById("successBanner").classList.add("hidden");
+      textarea.focus();
+    });
+  }
+</script>
+{% endblock %}

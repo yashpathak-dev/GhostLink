@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% set active_theme = user.theme if user else 'violet' %}
+{% block title %}Find Users & Friends — GhostLink{% endblock %}
+
+{% block content %}
+<header class="w-full border-b border-white/5 backdrop-blur-md sticky top-0 z-40">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+    <a href="/" class="flex items-center gap-2.5">
+      <span class="w-2.5 h-2.5 rounded-full bg-violet-500 animate-pulse"></span>
+      <span class="font-mono font-semibold tracking-wider text-lg text-white">GHOST<span class="text-violet-400">LINK</span></span>
+    </a>
+
+    <nav class="flex items-center gap-2 sm:gap-3">
+      <a href="/explore" class="text-xs font-mono text-violet-300 bg-violet-600/20 border border-violet-500/40 px-3 py-1.5 rounded-lg">
+        Find Users
+      </a>
+      <a href="/live" class="hidden sm:inline-block text-xs font-mono text-zinc-400 hover:text-violet-300 px-3 py-1.5 rounded-lg border border-white/10 transition">
+        Live TCP Room
+      </a>
+      {% if user %}
+        <a href="/u/{{ user.username }}" class="hidden md:inline-block text-xs font-mono text-zinc-300 hover:text-violet-300 px-3 py-1.5 rounded-lg border border-white/10 transition">
+          My Profile
+        </a>
+        <a href="/dashboard" class="bg-violet-600 hover:bg-violet-500 text-white text-xs font-mono px-3.5 py-1.5 rounded-lg transition">
+          Dashboard
+        </a>
+      {% else %}
+        <a href="/auth?mode=login" class="text-xs font-mono text-zinc-300 hover:text-white px-3 py-1.5">Log in</a>
+        <a href="/auth?mode=register" class="bg-violet-600 hover:bg-violet-500 text-white text-xs font-mono px-3.5 py-1.5 rounded-lg">
+          Join
+        </a>
+      {% endif %}
+    </nav>
+  </div>
+</header>
+
+<main class="max-w-5xl w-full mx-auto px-4 sm:px-6 py-10 flex-grow space-y-8">
+  <div class="glass-card theme-border p-6 sm:p-8 rounded-3xl space-y-4">
+    <div class="text-xs font-mono text-violet-400">DISCOVER GHOSTLINK DIRECTORY</div>
+    <h1 class="text-2xl sm:text-3xl font-bold text-white">Find Friends & Send Anonymous Notes</h1>
+    <p class="text-sm text-zinc-400">Search by handle or display name to add friends to your network or drop an anonymous message on their wall.</p>
+
+    <div class="flex flex-col sm:flex-row gap-3 pt-2">
+      <input
+        type="text"
+        id="userSearchInput"
+        value="{{ query }}"
+        placeholder="Search @username or name..."
+        class="flex-1 bg-zinc-950/80 border border-white/10 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-zinc-500 focus:outline-none focus:border-violet-500 transition"
+      />
+      <button type="button" id="searchUsersBtn"
+        class="bg-violet-600 hover:bg-violet-500 text-white font-semibold text-sm px-6 py-3 rounded-xl transition cursor-pointer">
+        Search
+      </button>
+    </div>
+    <div id="exploreToast" class="hidden text-xs font-mono text-emerald-400"></div>
+  </div>
+
+  <div id="usersGrid" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+    {% if not results %}
+      <div class="sm:col-span-2 lg:col-span-3 glass-card p-10 rounded-2xl text-center space-y-2">
+        <div class="text-2xl">🔍</div>
+        <h2 class="text-base font-semibold text-white">No matching GhostLink profiles found</h2>
+        <p class="text-sm text-zinc-400">Try searching a different handle or invite your friends to create a GhostLink.</p>
+      </div>
+    {% else %}
+      {% for person in results %}
+        <div class="glass-card p-5 rounded-2xl flex flex-col justify-between space-y-4 hover:border-violet-500/40 transition">
+          <div class="flex items-center gap-3.5">
+            {% if person.avatar_url %}
+              <img src="{{ person.avatar_url }}" alt="{{ person.display_name }}" class="w-12 h-12 rounded-2xl object-cover border border-violet-400/30 shrink-0" />
+            {% else %}
+              <div class="w-12 h-12 rounded-2xl bg-violet-600/25 border border-violet-400/30 flex items-center justify-center text-lg font-bold text-violet-200 uppercase shrink-0">
+                {{ person.display_name[0] }}
+              </div>
+            {% endif %}
+            <div class="min-w-0">
+              <h3 class="font-semibold text-white truncate">{{ person.display_name }}</h3>
+              <p class="text-xs font-mono text-violet-300 truncate">@{{ person.username }}</p>
+            </div>
+          </div>
+
+          <p class="text-xs text-zinc-400 line-clamp-2 min-h-[2rem]">{{ person.bio or 'Anonymous inbox active.' }}</p>
+
+          <div class="pt-2 border-t border-white/5 flex items-center gap-2">
+            <a href="/u/{{ person.username }}"
+              class="flex-1 text-center bg-violet-600 hover:bg-violet-500 text-white text-xs font-mono py-2.5 rounded-xl transition">
+              View Profile
+            </a>
+            {% if user %}
+              {% set added = person.id in friend_ids %}
+              <button type="button"
+                data-friend-toggle="{{ person.username }}"
+                data-is-friend="{{ '1' if added else '0' }}"
+                class="friend-toggle-btn text-xs font-mono px-3.5 py-2.5 rounded-xl border transition cursor-pointer {{ 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' if added else 'glass-card border-white/10 text-zinc-300 hover:border-violet-400/50' }}">
+                {{ '✓ Friend' if added else '+ Add' }}
+              </button>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    {% endif %}
+  </div>
+</main>
+
+<script id="exploreMeta" type="application/json">
+  {{ {"isLoggedIn": user is not none} | tojson }}
+</script>
+
+<script>
+  const exploreMeta = JSON.parse(document.getElementById("exploreMeta").textContent);
+
+  function showExploreToast(msg, isError = false) {
+    const el = document.getElementById("exploreToast");
+    el.innerText = msg;
+    el.className = `text-xs font-mono ${isError ? "text-red-400" : "text-emerald-400"}`;
+    el.classList.remove("hidden");
+    setTimeout(() => el.classList.add("hidden"), 2500);
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (m) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+    }[m]));
+  }
+
+  function renderUserCards(users) {
+    const grid = document.getElementById("usersGrid");
+    if (!users.length) {
+      grid.innerHTML = `
+        <div class="sm:col-span-2 lg:col-span-3 glass-card p-10 rounded-2xl text-center space-y-2">
+          <div class="text-2xl">🔍</div>
+          <h2 class="text-base font-semibold text-white">No matching GhostLink profiles found</h2>
+          <p class="text-sm text-zinc-400">Try searching a different handle or invite your friends to create a GhostLink.</p>
+        </div>`;
+      return;
+    }
+
+    grid.innerHTML = users.map((p) => {
+      const avatarHtml = p.avatar_url
+        ? `<img src="${escapeHtml(p.avatar_url)}" alt="${escapeHtml(p.display_name)}" class="w-12 h-12 rounded-2xl object-cover border border-violet-400/30 shrink-0" />`
+        : `<div class="w-12 h-12 rounded-2xl bg-violet-600/25 border border-violet-400/30 flex items-center justify-center text-lg font-bold text-violet-200 uppercase shrink-0">${escapeHtml(p.display_name[0] || "G")}</div>`;
+
+      const friendBtn = exploreMeta.isLoggedIn
+        ? `<button type="button" data-friend-toggle="${escapeHtml(p.username)}" data-is-friend="${p.is_friend ? "1" : "0"}"
+            class="friend-toggle-btn text-xs font-mono px-3.5 py-2.5 rounded-xl border transition cursor-pointer ${
+              p.is_friend ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300" : "glass-card border-white/10 text-zinc-300 hover:border-violet-400/50"
+            }">${p.is_friend ? "✓ Friend" : "+ Add"}</button>`
+        : "";
+
+      return `
+        <div class="glass-card p-5 rounded-2xl flex flex-col justify-between space-y-4 hover:border-violet-500/40 transition">
+          <div class="flex items-center gap-3.5">
+            ${avatarHtml}
+            <div class="min-w-0">
+              <h3 class="font-semibold text-white truncate">${escapeHtml(p.display_name)}</h3>
+              <p class="text-xs font-mono text-violet-300 truncate">@${escapeHtml(p.username)}</p>
+            </div>
+          </div>
+          <p class="text-xs text-zinc-400 line-clamp-2 min-h-[2rem]">${escapeHtml(p.bio || "Anonymous inbox active.")}</p>
+          <div class="pt-2 border-t border-white/5 flex items-center gap-2">
+            <a href="/u/${encodeURIComponent(p.username)}" class="flex-1 text-center bg-violet-600 hover:bg-violet-500 text-white text-xs font-mono py-2.5 rounded-xl transition">View Profile</a>
+            ${friendBtn}
+          </div>
+        </div>`;
+    }).join("");
+  }
+
+  let searchTimer = null;
+  async function runUserSearch() {
+    const q = document.getElementById("userSearchInput").value.trim();
+    const res = await fetch(`/api/users/search?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    if (data.ok) renderUserCards(data.users);
+  }
+
+  document.getElementById("userSearchInput").addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(runUserSearch, 250);
+  });
+  document.getElementById("searchUsersBtn").addEventListener("click", runUserSearch);
+
+  document.getElementById("usersGrid").addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-friend-toggle]");
+    if (!btn) return;
+    const username = btn.getAttribute("data-friend-toggle");
+    const isAdded = btn.getAttribute("data-is-friend") === "1";
+    const endpoint = isAdded ? "/api/friends/remove" : "/api/friends/add";
+
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username })
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      const nowAdded = !isAdded;
+      btn.setAttribute("data-is-friend", nowAdded ? "1" : "0");
+      btn.innerText = nowAdded ? "✓ Friend" : "+ Add";
+      btn.className = `friend-toggle-btn text-xs font-mono px-3.5 py-2.5 rounded-xl border transition cursor-pointer ${
+        nowAdded ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300" : "glass-card border-white/10 text-zinc-300 hover:border-violet-400/50"
+      }`;
+      showExploreToast(data.message);
+    } else {
+      showExploreToast(data.error || "Action failed.", true);
+    }
+  });
+</script>
+{% endblock %}
